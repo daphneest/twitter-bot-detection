@@ -1,0 +1,4 @@
+model_key,model_name,model_path,f1,precision,recall,auc_roc
+logistic_regression,Régression Logistique,/Users/daphneestoessel/twitter-bot-detection/models/logistic_regression.joblib,0.9702,0.9639,0.9766,0.9624
+random_forest,Random Forest,/Users/daphneestoessel/twitter-bot-detection/models/random_forest.joblib,0.9892,0.9959,0.9827,0.9885
+xgboost,XGBoost,/Users/daphneestoessel/twitter-bot-detection/models/xgboost.joblib,0.9898,0.9959,0.9837,0.989
