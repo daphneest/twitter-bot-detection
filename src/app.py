@@ -29,20 +29,22 @@ def load_model():
     return joblib.load(MODELS_DIR / 'xgboost.joblib')
 
 
+# Médianes calculées sur les comptes humains uniquement pour que les valeurs
+# par défaut ne soient pas bot-skewed (58.6% du dataset sont des bots)
 MEDIANS = {
-    'statuses_count': 219.5, 'followers_count': 55.0, 'friends_count': 90.0,
-    'favourites_count': 0.0, 'listed_count': 0.0, 'default_profile': 0.0,
-    'default_profile_image': 0.0, 'geo_enabled': 0.0,
+    'statuses_count': 6609.0, 'followers_count': 341.0, 'friends_count': 319.0,
+    'favourites_count': 1286.0, 'listed_count': 2.0, 'default_profile': 0.0,
+    'default_profile_image': 0.0, 'geo_enabled': 1.0,
     'profile_use_background_image': 1.0, 'verified': 0.0,
-    'name_length': 13.0, 'screen_name_length': 12.0, 'description_length': 14.0,
+    'name_length': 11.0, 'screen_name_length': 11.0, 'description_length': 51.0,
     'name_contains_bot': 0.0, 'screen_name_contains_bot': 0.0,
-    'name_entropy': 3.19, 'screen_name_entropy': 3.09,
-    'friends_followers_ratio': 2.16, 'lists_followers_ratio': 0.0,
-    'retweet_followers_ratio': 0.001, 'favorites_followers_ratio': 0.0,
-    'retweet_status_ratio': 0.011, 'favorites_status_ratio': 0.0,
-    'reply_status_ratio': 0.35, 'account_age': 67312.0,
-    'followers_account_age_ratio': 0.0007, 'friends_account_age_ratio': 0.0011,
-    'statuses_account_age_ratio': 0.0028, 'favourites_account_age_ratio': 0.0,
+    'name_entropy': 3.0, 'screen_name_entropy': 3.0,
+    'friends_followers_ratio': 0.974, 'lists_followers_ratio': 0.0061,
+    'retweet_followers_ratio': 1.783, 'favorites_followers_ratio': 3.815,
+    'retweet_status_ratio': 0.096, 'favorites_status_ratio': 0.251,
+    'reply_status_ratio': 0.108, 'account_age': 83348.5,
+    'followers_account_age_ratio': 0.0041, 'friends_account_age_ratio': 0.0038,
+    'statuses_account_age_ratio': 0.078, 'favourites_account_age_ratio': 0.0158,
     'lists_account_age_ratio': 0.0,
 }
 
@@ -271,7 +273,7 @@ def build_app() -> None:
             unsafe_allow_html=True
         )
 
-        col_a, col_b = st.columns([2, 1])
+        col_a, col_b = st.columns(2)
         with col_a:
             section("Distribution des followers (percentile 95)")
             df_f = df[df['followers_count'] < df['followers_count'].quantile(0.95)]
@@ -280,26 +282,18 @@ def build_app() -> None:
                 nbins=50, barmode='overlay', opacity=0.75)
             fig.update_layout(**chart_layout())
             fig.update_layout(xaxis_title="Followers", yaxis_title="Comptes", legend_title="")
-            st.plotly_chart(fig, use_container_width=True)
-
-        with col_b:
-            section("Répartition des classes")
-            fig_pie = px.pie(
-                df, names='Type', hole=0.62,
-                color_discrete_map={'Humain': '#06B6D4', 'Bot': '#EF4444'},
-                color='Type'
-            )
-            fig_pie.update_layout(**chart_layout())
-            fig_pie.update_traces(textfont_color='#E2E8F0')
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="followers_hist")
 
         col_c, col_d = st.columns(2)
         with col_c:
             section("Âge du compte (jours)")
-            fig2 = px.box(df, x='Type', y='account_age', color='Type',
-                color_discrete_map={'Humain': '#06B6D4', 'Bot': '#EF4444'})
+            df_age = df.copy()
+            df_age['age_jours'] = df_age['account_age'] / 24
+            fig2 = px.box(df_age, x='Type', y='age_jours', color='Type',
+                color_discrete_map={'Humain': '#06B6D4', 'Bot': '#EF4444'},
+                labels={'age_jours': 'Âge (jours)'})
             fig2.update_layout(**chart_layout(), showlegend=False)
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, use_container_width=True, key="age_box")
 
         with col_d:
             section("Ratio abonnements / followers")
@@ -308,7 +302,7 @@ def build_app() -> None:
                 color_discrete_map={'Humain': '#06B6D4', 'Bot': '#EF4444'},
                 nbins=50, barmode='overlay', opacity=0.75)
             fig3.update_layout(**chart_layout(), legend_title="")
-            st.plotly_chart(fig3, use_container_width=True)
+            st.plotly_chart(fig3, use_container_width=True, key="friends_ratio_hist")
 
     # ── ANALYSER UN COMPTE ────────────────────────────────────────────────
     elif page == "Analyser un compte":
@@ -321,11 +315,11 @@ def build_app() -> None:
         col1, col2 = st.columns(2)
         with col1:
             section("Activité & Réseau")
-            followers   = st.number_input("Followers", min_value=0, value=150, step=10)
-            friends     = st.number_input("Abonnements (following)", min_value=0, value=200, step=10)
-            statuses    = st.number_input("Tweets publiés", min_value=0, value=500, step=50)
-            favourites  = st.number_input("Likes donnés", min_value=0, value=100, step=10)
-            account_age = st.number_input("Âge du compte (jours)", min_value=1, value=365, step=30)
+            followers   = st.number_input("Followers", min_value=0, value=341, step=10)
+            friends     = st.number_input("Abonnements (following)", min_value=0, value=319, step=10)
+            statuses    = st.number_input("Tweets publiés", min_value=0, value=6609, step=50)
+            favourites  = st.number_input("Likes donnés", min_value=0, value=1286, step=10)
+            account_age = st.number_input("Âge du compte (jours)", min_value=1, value=3473, step=30)
 
         with col2:
             section("Profil")
@@ -340,11 +334,13 @@ def build_app() -> None:
 
         if run:
             model = load_model()
+            # account_age dans le modèle est en heures — l'utilisateur entre des jours
+            account_age_h = account_age * 24
             inp = MEDIANS.copy()
             inp.update({
                 'followers_count': followers, 'friends_count': friends,
                 'statuses_count': statuses, 'favourites_count': favourites,
-                'account_age': account_age,
+                'account_age': account_age_h,
                 'default_profile_image': int(default_pic),
                 'default_profile': int(default_profile),
                 'description_length': 0 if not has_bio else 80,
@@ -352,10 +348,10 @@ def build_app() -> None:
                 'screen_name_contains_bot': int(name_has_bot),
                 'verified': int(verified),
                 'friends_followers_ratio': friends / (followers + 1),
-                'statuses_account_age_ratio': statuses / (account_age + 1),
-                'followers_account_age_ratio': followers / (account_age + 1),
-                'friends_account_age_ratio': friends / (account_age + 1),
-                'favourites_account_age_ratio': favourites / (account_age + 1),
+                'statuses_account_age_ratio': statuses / (account_age_h + 1),
+                'followers_account_age_ratio': followers / (account_age_h + 1),
+                'friends_account_age_ratio': friends / (account_age_h + 1),
+                'favourites_account_age_ratio': favourites / (account_age_h + 1),
             })
 
             X     = pd.DataFrame([inp])[FEATURES]
@@ -408,7 +404,7 @@ def build_app() -> None:
                     height=230, margin=dict(t=30, b=0, l=0, r=0),
                     paper_bgcolor='rgba(0,0,0,0)', font_color='#9CA3AF'
                 )
-                st.plotly_chart(fig_g, use_container_width=True)
+                st.plotly_chart(fig_g, use_container_width=True, key="gauge")
 
             section("Signaux détectés")
             signals = []
@@ -416,8 +412,8 @@ def build_app() -> None:
                 signals.append(("danger", f"Ratio following/followers = {friends/(followers+1):.1f} — seuil suspect > 5"))
             if default_pic:
                 signals.append(("danger", "Photo de profil par défaut — absence d'identité visuelle"))
-            if statuses / (account_age + 1) > 0.05:
-                signals.append(("danger", f"Fréquence de publication anormale : {statuses/(account_age+1):.3f} tweets/jour"))
+            if statuses / (account_age + 1) > 1.2:
+                signals.append(("danger", f"Fréquence de publication anormale : {statuses/(account_age+1):.1f} tweets/jour"))
             if name_has_bot:
                 signals.append(("danger", "Le nom du compte contient explicitement 'bot'"))
             if not has_bio:
@@ -431,58 +427,148 @@ def build_app() -> None:
                 html += f'<div class="signal {kind}"><span class="icon">{icon}</span><span class="text">{msg}</span></div>'
             st.markdown(html, unsafe_allow_html=True)
 
-            section("Interprétation locale — pourquoi ce résultat ? (SHAP)")
-            st.caption("Chaque barre montre la contribution d'une feature à la prédiction. Rouge = pousse vers bot, bleu = pousse vers humain.")
+            verdict = "🤖 BOT" if pred == 1 else "👤 HUMAIN"
+            verdict_color = "#EF4444" if pred == 1 else "#10B981"
+            section(f"Pourquoi le modèle dit {verdict} ?")
+
             xgb_pipeline = load_model()
             explainer = shap.TreeExplainer(xgb_pipeline.named_steps['model'])
             X_scaled = xgb_pipeline.named_steps['scaler'].transform(X)
             shap_vals = explainer.shap_values(X_scaled)[0]
 
+            # Top 10 features par valeur absolue
             feat_contrib = pd.DataFrame({
                 'Feature': FEATURES,
+                'Valeur': X.iloc[0].values,
                 'Contribution': shap_vals,
-            }).reindex(pd.Series(np.abs(shap_vals)).sort_values(ascending=True).index)
-
-            colors = ['#EF4444' if v > 0 else '#06B6D4' for v in feat_contrib['Contribution']]
-            fig_shap = go.Figure(go.Bar(
-                x=feat_contrib['Contribution'],
-                y=feat_contrib['Feature'],
-                orientation='h',
-                marker_color=colors,
-            ))
-            fig_shap.update_layout(
-                **chart_layout(),
-                height=420,
-                xaxis_title="Contribution SHAP",
-                xaxis=dict(gridcolor='#1F2937', zeroline=True, zerolinecolor='#4B5563'),
-                yaxis=dict(gridcolor='#1F2937'),
+            })
+            feat_contrib = feat_contrib.reindex(
+                feat_contrib['Contribution'].abs().sort_values(ascending=True).tail(10).index
             )
-            st.plotly_chart(fig_shap, use_container_width=True)
+            feat_contrib['Direction'] = feat_contrib['Contribution'].apply(
+                lambda v: '→ bot' if v > 0 else '→ humain'
+            )
+            feat_contrib['Label'] = feat_contrib.apply(
+                lambda r: f"{r['Feature']}  =  {r['Valeur']:.2f}", axis=1
+            )
+
+            bar_colors = ['#EF4444' if v > 0 else '#06B6D4' for v in feat_contrib['Contribution']]
+
+            fig_shap = go.Figure()
+            fig_shap.add_trace(go.Bar(
+                x=feat_contrib['Contribution'],
+                y=feat_contrib['Label'],
+                orientation='h',
+                marker_color=bar_colors,
+                marker_line_width=0,
+                hovertemplate='<b>%{y}</b><br>Contribution SHAP : %{x:.4f}<extra></extra>',
+            ))
+            fig_shap.add_vline(x=0, line_color='#4B5563', line_width=1.5)
+            fig_shap.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                font_color='#9CA3AF',
+                legend=dict(bgcolor='rgba(0,0,0,0)'),
+                height=380,
+                title=dict(
+                    text=f'Top 10 features · <span style="color:{verdict_color}">{verdict}</span> à {score*100:.1f}%',
+                    font=dict(size=13, color='#E2E8F0'),
+                ),
+                xaxis=dict(gridcolor='#1F2937', zeroline=False,
+                           title='← pousse vers humain   |   pousse vers bot →',
+                           title_font=dict(size=11, color='#6B7280')),
+                yaxis=dict(gridcolor='rgba(0,0,0,0)', tickfont=dict(size=11)),
+                margin=dict(l=10, r=10, t=50, b=10),
+            )
+            st.plotly_chart(fig_shap, use_container_width=True, key="shap_bar")
+
+            col_leg1, col_leg2, _ = st.columns([1, 1, 2])
+            col_leg1.markdown('<span style="color:#EF4444;font-size:0.85rem">■ Pousse vers BOT</span>', unsafe_allow_html=True)
+            col_leg2.markdown('<span style="color:#06B6D4;font-size:0.85rem">■ Pousse vers HUMAIN</span>', unsafe_allow_html=True)
 
     # ── RÉSULTATS ─────────────────────────────────────────────────────────
     elif page == "Résultats":
         st.markdown('<h1 style="font-size:2rem;font-weight:700;margin-bottom:1rem">Performance des modèles</h1>', unsafe_allow_html=True)
 
-        st.markdown('<p style="color:#4B5563;font-size:0.85rem;font-style:italic">Régression Logistique F1=0.97 · Random Forest F1=0.99 · XGBoost F1=0.99 — évaluation sur 20% du dataset (jeu de test)</p>', unsafe_allow_html=True)
+        st.markdown('<p style="color:#4B5563;font-size:0.85rem;font-style:italic">Évaluation sur 20% du dataset non vu pendant l\'entraînement (jeu de test holdout)</p>', unsafe_allow_html=True)
 
-        col1, col2 = st.columns(2)
-        with col1:
-            section("Radar des métriques")
-            st.image(str(PLOTS_DIR / 'radar_metriques.png'), use_container_width=True)
-        with col2:
-            section("Comparaison CV 5 folds")
-            st.image(str(PLOTS_DIR / 'comparaison_modeles.png'), use_container_width=True)
+        section("Pourquoi XGBoost — le moins de comptes humains bannis à tort")
+        col1, col2, col3 = st.columns(3)
+        fp_data = [
+            ("Régression Logistique", 36, 23, "#F59E0B"),
+            ("Random Forest",          4, 17, "#8B5CF6"),
+            ("XGBoost",                4, 16, "#10B981"),
+        ]
+        for col, (name, fp, fn, color) in zip([col1, col2, col3], fp_data):
+            col.markdown(
+                f'<div class="glass-card" style="border-left:3px solid {color};text-align:center">'
+                f'<div style="color:#9CA3AF;font-size:0.75rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem">{name}</div>'
+                f'<div style="font-size:2rem;font-weight:700;color:#EF4444;font-family:JetBrains Mono,monospace">{fp}</div>'
+                f'<div style="color:#6B7280;font-size:0.78rem;margin-bottom:.8rem">humains bannis à tort</div>'
+                f'<div style="font-size:1.4rem;font-weight:600;color:#F59E0B;font-family:JetBrains Mono,monospace">{fn}</div>'
+                f'<div style="color:#6B7280;font-size:0.78rem">bots non détectés</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+        st.markdown(
+            '<p style="color:#6B7280;font-size:0.82rem;margin-top:.5rem">'
+            'Un faux positif = un humain détecté comme bot et banni à tort. '
+            'XGBoost et Random Forest commettent 9× moins d\'erreurs que la Régression Logistique sur ce critère. '
+            'XGBoost est retenu car il détecte également 1 bot supplémentaire.</p>',
+            unsafe_allow_html=True
+        )
 
-        section("Courbes ROC — 3 modèles")
-        st.image(str(PLOTS_DIR / 'roc_curves.png'), use_container_width=True)
+        section("Indicateurs clés — XGBoost")
+        st.image(str(PLOTS_DIR / 'feature_importance.png'), use_container_width=True)
 
-        col3, col4 = st.columns([3, 2])
-        with col3:
-            section("Matrices de confusion")
-            st.image(str(PLOTS_DIR / 'confusion_matrices.png'), use_container_width=True)
-        with col4:
-            section("Feature importance — XGBoost")
-            st.image(str(PLOTS_DIR / 'feature_importance.png'), use_container_width=True)
+        st.divider()
+        st.markdown(
+            '<h2 style="font-size:1.5rem;font-weight:700;margin:1.5rem 0 0.5rem">Ce que le modèle a appris</h2>'
+            '<p style="color:#6B7280;font-size:0.88rem;margin-bottom:1.5rem">'
+            'Quels indicateurs le modèle juge-t-il vraiment utiles, et comment les utilise-t-il ?</p>',
+            unsafe_allow_html=True
+        )
+
+        col5, col6 = st.columns([1, 1])
+        with col5:
+            section("Importance des indicateurs (permutation)")
+            st.image(str(PLOTS_DIR / 'permutation_importance.png'), use_container_width=True)
+            st.markdown(
+                '<p style="color:#6B7280;font-size:0.8rem">'
+                'On mélange aléatoirement les valeurs d\'un indicateur et on mesure la chute de précision. '
+                'Plus la chute est grande, plus cet indicateur est indispensable au modèle.</p>',
+                unsafe_allow_html=True
+            )
+        with col6:
+            section("PDP / ICE centré — effet marginal des variables clés")
+            st.image(str(PLOTS_DIR / 'pdp_single_feature.png'), use_container_width=True)
+            st.markdown(
+                '<p style="color:#6B7280;font-size:0.8rem">'
+                '<b style="color:#EF4444">■</b> ICE bots &nbsp;·&nbsp; '
+                '<b style="color:#06B6D4">■</b> ICE humains &nbsp;·&nbsp; '
+                '<b style="color:#F59E0B">—</b> Tendance globale &nbsp;·&nbsp; '
+                'Zones colorées = zone dominante bot (rouge) / humain (bleu).<br>'
+                'Calculé sur le modèle XGBoost complet. '
+                'La courbe ne montre pas la probabilité brute, '
+                'mais <b>comment la prédiction varie quand la feature change</b>, '
+                'les 29 autres features maintenues à leur valeur réelle.</p>',
+                unsafe_allow_html=True
+            )
+
+        st.markdown(
+            '<div style="background:linear-gradient(90deg,rgba(6,182,212,0.06) 0%,transparent 100%);'
+            'border-left:3px solid #06B6D4;border-radius:0 8px 8px 0;padding:1rem 1.5rem;margin-top:1rem">'
+            '<p style="margin:0;font-size:0.9rem;color:#E2E8F0">'
+            '<b style="color:#06B6D4">Comment lire ces graphiques</b><br>'
+            '• <b>Axe vertical</b> : variation de la probabilité bot par rapport au point de départ (centré à 0). '
+            'Une valeur négative = la feature pousse vers "humain".<br>'
+            '• <b>Zone rouge</b> : là où les bots dominent — ratio faible, peu d\'activité.<br>'
+            '• <b>Zone bleue</b> : là où les humains dominent — ratio plus élevé, comportement actif.<br>'
+            '• <b>Ligne verticale dorée</b> : seuil de transition entre les deux zones.<br>'
+            '• <b>Amplitude faible</b> : normale sur un modèle à 99% — le modèle décide par combinaison '
+            'de 30 indicateurs, pas sur une seule variable isolée.'
+            '</p></div>',
+            unsafe_allow_html=True
+        )
 
 
 if __name__ == "__main__":
